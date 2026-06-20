@@ -31,39 +31,53 @@
     </header>
 
     <main class="dashboard-main">
-      <section class="stats-section">
-        <div class="stats-grid">
-          <StatCard
-            label="累计用户"
-            :value="stats.totalUsers"
-            :today-value="stats.todayUsers"
-            icon="👥"
-            color="#00d4ff"
-          />
-          <StatCard
-            label="累计订单"
-            :value="stats.totalOrders"
-            :today-value="stats.todayOrders"
-            icon="📦"
-            color="#7c5cff"
-          />
-          <StatCard
-            label="累计营收"
-            :value="stats.totalRevenue"
-            :today-value="stats.todayRevenue"
-            icon="💰"
-            color="#ff6b9d"
-            prefix="¥"
-          />
-          <StatCard
-            label="门店数"
-            :value="stats.totalStores"
-            :today-value="stats.todayStores"
-            icon="🏪"
-            color="#32d583"
-          />
+      <div class="content-wrap">
+        <section class="stats-section">
+          <div class="stats-grid">
+            <StatCard
+              label="累计用户"
+              :value="stats.totalUsers"
+              :today-value="stats.todayUsers"
+              icon="👥"
+              color="#00d4ff"
+            />
+            <StatCard
+              label="累计订单"
+              :value="stats.totalOrders"
+              :today-value="stats.todayOrders"
+              icon="📦"
+              color="#7c5cff"
+            />
+            <StatCard
+              label="累计营收"
+              :value="stats.totalRevenue"
+              :today-value="stats.todayRevenue"
+              icon="💰"
+              color="#ff6b9d"
+              prefix="¥"
+            />
+            <StatCard
+              label="门店数"
+              :value="stats.totalStores"
+              :today-value="stats.todayStores"
+              icon="🏪"
+              color="#32d583"
+            />
+          </div>
+        </section>
+
+        <TodayData />
+
+        <div class="two-col-row">
+          <div class="col-left">
+            <TrendChart />
+            <CityRanking />
+          </div>
+          <div class="col-right">
+            <TodoReminder />
+          </div>
         </div>
-      </section>
+      </div>
     </main>
   </div>
 </template>
@@ -71,6 +85,10 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import StatCard from './components/StatCard.vue';
+import TodayData from './components/TodayData.vue';
+import TrendChart from './components/TrendChart.vue';
+import CityRanking from './components/CityRanking.vue';
+import TodoReminder from './components/TodoReminder.vue';
 import { getDashboardStats } from './api';
 
 const loading = ref(false);
@@ -316,9 +334,13 @@ body {
   padding: 48px 56px;
 }
 
-.stats-section {
+.content-wrap {
   max-width: 1600px;
   margin: 0 auto;
+}
+
+.stats-section {
+  margin-bottom: 32px;
 }
 
 .stats-grid {
@@ -327,9 +349,24 @@ body {
   gap: 24px;
 }
 
+.two-col-row {
+  display: grid;
+  grid-template-columns: 1.65fr 1fr;
+  gap: 24px;
+}
+
+.col-left,
+.col-right {
+  display: flex;
+  flex-direction: column;
+}
+
 @media (max-width: 1200px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .two-col-row {
+    grid-template-columns: 1fr;
   }
 }
 
