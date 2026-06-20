@@ -119,15 +119,52 @@ const filterState = ref({
   endDate: ''
 });
 
+const getDateRangeFromTimeRange = (timeRange, startDate, endDate) => {
+  const now = new Date();
+  const formatDateStr = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  switch (timeRange) {
+    case 'today': {
+      const today = formatDateStr(now);
+      return { startDate: today, endDate: today };
+    }
+    case '7d': {
+      const end = formatDateStr(now);
+      const start = new Date(now.getTime() - 6 * 24 * 3600 * 1000);
+      return { startDate: formatDateStr(start), endDate: end };
+    }
+    case '14d': {
+      const end = formatDateStr(now);
+      const start = new Date(now.getTime() - 13 * 24 * 3600 * 1000);
+      return { startDate: formatDateStr(start), endDate: end };
+    }
+    case '30d': {
+      const end = formatDateStr(now);
+      const start = new Date(now.getTime() - 29 * 24 * 3600 * 1000);
+      return { startDate: formatDateStr(start), endDate: end };
+    }
+    case 'custom': {
+      if (startDate && endDate) return { startDate, endDate };
+      return {};
+    }
+    default:
+      return {};
+  }
+};
+
 const filterParams = computed(() => {
   const params = {};
   const state = filterState.value;
   if (state.city) params.city = state.city;
   if (state.store) params.store = state.store;
-  if (state.timeRange === 'custom' && state.startDate && state.endDate) {
-    params.startDate = state.startDate;
-    params.endDate = state.endDate;
-  }
+  const range = getDateRangeFromTimeRange(state.timeRange, state.startDate, state.endDate);
+  if (range.startDate) params.startDate = range.startDate;
+  if (range.endDate) params.endDate = range.endDate;
   return params;
 });
 

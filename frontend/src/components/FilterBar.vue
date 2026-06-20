@@ -230,14 +230,51 @@ const handleEndDateChange = (e) => {
   }
 };
 
+const getDateRangeFromTimeRange = (timeRange, startDate, endDate) => {
+  const now = new Date();
+  const formatDateStr = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  switch (timeRange) {
+    case 'today': {
+      const today = formatDateStr(now);
+      return { startDate: today, endDate: today };
+    }
+    case '7d': {
+      const end = formatDateStr(now);
+      const start = new Date(now.getTime() - 6 * 24 * 3600 * 1000);
+      return { startDate: formatDateStr(start), endDate: end };
+    }
+    case '14d': {
+      const end = formatDateStr(now);
+      const start = new Date(now.getTime() - 13 * 24 * 3600 * 1000);
+      return { startDate: formatDateStr(start), endDate: end };
+    }
+    case '30d': {
+      const end = formatDateStr(now);
+      const start = new Date(now.getTime() - 29 * 24 * 3600 * 1000);
+      return { startDate: formatDateStr(start), endDate: end };
+    }
+    case 'custom': {
+      if (startDate && endDate) return { startDate, endDate };
+      return {};
+    }
+    default:
+      return {};
+  }
+};
+
 const emitChange = () => {
   const params = {};
   if (city.value) params.city = city.value;
   if (store.value) params.store = store.value;
-  if (timeRange.value === 'custom' && startDate.value && endDate.value) {
-    params.startDate = startDate.value;
-    params.endDate = endDate.value;
-  }
+  const range = getDateRangeFromTimeRange(timeRange.value, startDate.value, endDate.value);
+  if (range.startDate) params.startDate = range.startDate;
+  if (range.endDate) params.endDate = range.endDate;
   emit('change', params);
 };
 
@@ -245,10 +282,9 @@ const emitChangeWithValue = (val) => {
   const params = {};
   if (val.city) params.city = val.city;
   if (val.store) params.store = val.store;
-  if (val.timeRange === 'custom' && val.startDate && val.endDate) {
-    params.startDate = val.startDate;
-    params.endDate = val.endDate;
-  }
+  const range = getDateRangeFromTimeRange(val.timeRange, val.startDate, val.endDate);
+  if (range.startDate) params.startDate = range.startDate;
+  if (range.endDate) params.endDate = range.endDate;
   emit('change', params);
 };
 
