@@ -251,13 +251,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import {
   getAnnouncements,
   createAnnouncement,
   updateAnnouncement,
   deleteAnnouncement,
-  getAnnouncementTypes
+  getAnnouncementTypes,
+  getAnnouncementVersion
 } from '../api';
 
 const types = reactive({});
@@ -267,6 +268,36 @@ const pagination = reactive({ page: 1, pageSize: 5, total: 0 });
 const stats = reactive({ total: 0, published: 0, draft: 0, urgent: 0 });
 const showModal = ref(false);
 const submitting = ref(false);
+const currentVersion = ref(-1);
+let pollTimer = null;
+const POLL_INTERVAL = 5000;
+
+const checkVersion = async () => {
+  try {
+    const res = await getAnnouncementVersion();
+    if (res.code === 0) {
+      const newVersion = res.data.version;
+      if (currentVersion.value !== -1 && newVersion !== currentVersion.value) {
+        fetchData();
+      }
+      currentVersion.value = newVersion;
+    }
+  } catch (e) {
+    console.error('检查公告版本失败', e);
+  }
+};
+
+const startPolling = () => {
+  if (pollTimer) return;
+  pollTimer = setInterval(checkVersion, POLL_INTERVAL);
+};
+
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+};
 
 const filters = reactive({
   type: 'all',
@@ -328,6 +359,11 @@ const fetchData = async () => {
       items.splice(0, items.length, ...res.data.items);
       pagination.total = res.data.total;
       Object.assign(stats, res.data.stats);
+    }
+
+    const verRes = await getAnnouncementVersion();
+    if (verRes.code === 0) {
+      currentVersion.value = verRes.data.version;
     }
   } catch (e) { console.error(e); }
 };
@@ -451,6 +487,11 @@ onMounted(async () => {
     }
   } catch (e) { console.error(e); }
   fetchData();
+  startPolling();
+});
+
+onUnmounted(() => {
+  stopPolling();
 });
 </script>
 

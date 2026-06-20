@@ -460,6 +460,13 @@ let announcements = [
 ];
 
 let announcementSeq = 6;
+let announcementVersion = 0;
+let announcementLastUpdated = new Date().toISOString();
+
+function bumpAnnouncementVersion() {
+  announcementVersion++;
+  announcementLastUpdated = new Date().toISOString();
+}
 
 function generateAnnouncementId() {
   const year = new Date().getFullYear();
@@ -547,6 +554,7 @@ app.post('/api/announcements', (req, res) => {
   };
 
   announcements.unshift(newAnnouncement);
+  bumpAnnouncementVersion();
 
   res.json({
     code: 0,
@@ -580,6 +588,7 @@ app.put('/api/announcements/:id', (req, res) => {
   if (status) current.status = status;
 
   announcements[idx] = current;
+  bumpAnnouncementVersion();
 
   res.json({
     code: 0,
@@ -596,6 +605,7 @@ app.delete('/api/announcements/:id', (req, res) => {
   }
 
   announcements.splice(idx, 1);
+  bumpAnnouncementVersion();
 
   res.json({
     code: 0,
@@ -609,6 +619,17 @@ app.get('/api/announcements/types', (req, res) => {
     data: {
       types: ANNOUNCEMENT_TYPES,
       levels: ANNOUNCEMENT_LEVELS
+    },
+    message: 'success'
+  });
+});
+
+app.get('/api/announcements/version', (req, res) => {
+  res.json({
+    code: 0,
+    data: {
+      version: announcementVersion,
+      lastUpdated: announcementLastUpdated
     },
     message: 'success'
   });

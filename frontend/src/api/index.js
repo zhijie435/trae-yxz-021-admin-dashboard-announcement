@@ -65,3 +65,7 @@ export const deleteAnnouncement = (id) => {
 export const getAnnouncementTypes = () => {
   return request.get('/announcements/types').then(res => res.data);
 };
+
+export const getAnnouncementVersion = () => {
+  return request.get('/announcements/version').then(res => res.data);
+};
