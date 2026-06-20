@@ -62,8 +62,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { getDashboardCities } from '../api';
+
+const props = defineProps({
+  filterParams: {
+    type: Object,
+    default: () => ({})
+  }
+});
 
 const cities = reactive([]);
 const sortBy = ref('revenue');
@@ -111,11 +118,19 @@ const getBarWidth = (city) => {
   return Math.max((city[sortBy.value] / maxValue.value) * 100, 3);
 };
 
-onMounted(async () => {
+const fetchData = async () => {
   try {
-    const res = await getDashboardCities();
+    const res = await getDashboardCities(props.filterParams);
     if (res.code === 0) cities.splice(0, cities.length, ...res.data.ranking);
   } catch (e) { console.error(e); }
+};
+
+watch(() => props.filterParams, () => {
+  fetchData();
+}, { deep: true });
+
+onMounted(() => {
+  fetchData();
 });
 </script>
 

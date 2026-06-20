@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3001;
+const PORT = 3002;
 
 app.use(cors());
 app.use(express.json());
@@ -18,47 +18,101 @@ const mockData = {
   todayStores: 3
 };
 
+const cityList = [
+  { name: '上海', code: 'SH', weight: 1.35 },
+  { name: '北京', code: 'BJ', weight: 1.28 },
+  { name: '广州', code: 'GZ', weight: 1.12 },
+  { name: '深圳', code: 'SZ', weight: 1.18 },
+  { name: '杭州', code: 'HZ', weight: 0.98 },
+  { name: '成都', code: 'CD', weight: 0.88 },
+  { name: '武汉', code: 'WH', weight: 0.82 },
+  { name: '南京', code: 'NJ', weight: 0.78 },
+  { name: '西安', code: 'XA', weight: 0.72 },
+  { name: '重庆', code: 'CQ', weight: 0.75 }
+];
+
+function generateStores() {
+  const stores = [];
+  const storeNames = [
+    '旗舰店', '中心店', '万达店', '银泰店', '万象城店',
+    '龙湖店', '大悦城店', '恒隆店', '环球店', '德基店',
+    '印象城店', '凯德店', '来福士店', '华润店', '百联店',
+    '新天地店', '南京路店', '王府井店', '三里屯店', '国贸店'
+  ];
+  let id = 1;
+  cityList.forEach(city => {
+    const count = 4 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < count && i < storeNames.length; i++) {
+      stores.push({
+        id: `S${String(id).padStart(4, '0')}`,
+        name: `${city.name}${storeNames[i]}`,
+        cityCode: city.code,
+        cityName: city.name,
+        status: Math.random() > 0.15 ? 'active' : 'paused'
+      });
+      id++;
+    }
+  });
+  return stores;
+}
+
+const storeList = generateStores();
+
+function getFilterWeight(city, store) {
+  let weight = 1;
+  if (city) {
+    const c = cityList.find(x => x.code === city);
+    if (c) weight *= c.weight;
+  }
+  if (store) {
+    const s = storeList.find(x => x.id === store);
+    if (s) weight *= 0.85 + Math.random() * 0.3;
+  }
+  return weight;
+}
+
+function getTimeRangeFactor(startDate, endDate) {
+  if (!startDate && !endDate) return 1;
+  const now = new Date();
+  const start = startDate ? new Date(startDate) : new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+  const end = endDate ? new Date(endDate) : now;
+  const days = Math.max(1, Math.ceil((end - start) / (24 * 3600 * 1000)));
+  return Math.min(2, Math.max(0.3, days / 14));
+}
+
 function randomFluctuate(base, range) {
   return base + Math.floor(Math.random() * range * 2) - range;
 }
 
-function generateTrendData(days = 14) {
+function generateTrendData(days = 14, weight = 1) {
   const result = { dates: [], orders: [], revenue: [], newUsers: [] };
   const now = new Date();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
     result.dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
-    const baseFactor = 0.8 + Math.random() * 0.5;
+    const baseFactor = (0.8 + Math.random() * 0.5) * weight;
     result.orders.push(Math.floor((200 + Math.random() * 150) * baseFactor));
-    result.revenue.push(+(50000 + Math.random() * 80000 * baseFactor).toFixed(2));
+    result.revenue.push(+((50000 + Math.random() * 80000) * baseFactor).toFixed(2));
     result.newUsers.push(Math.floor((350 + Math.random() * 200) * baseFactor));
   }
   return result;
 }
 
-function generateCityRanking() {
-  const cities = [
-    { name: '上海', code: 'SH' },
-    { name: '北京', code: 'BJ' },
-    { name: '广州', code: 'GZ' },
-    { name: '深圳', code: 'SZ' },
-    { name: '杭州', code: 'HZ' },
-    { name: '成都', code: 'CD' },
-    { name: '武汉', code: 'WH' },
-    { name: '南京', code: 'NJ' },
-    { name: '西安', code: 'XA' },
-    { name: '重庆', code: 'CQ' }
-  ];
-  return cities.map(c => ({
-    ...c,
-    orders: Math.floor(500 + Math.random() * 8000),
-    revenue: +(100000 + Math.random() * 2500000).toFixed(2),
-    users: Math.floor(2000 + Math.random() * 30000),
-    growth: +(Math.random() * 40 - 5).toFixed(1)
-  })).sort((a, b) => b.revenue - a.revenue).map((c, i) => ({ ...c, rank: i + 1 }));
+function generateCityRanking(weight = 1) {
+  return cityList.map(c => {
+    const w = c.weight * weight;
+    return {
+      name: c.name,
+      code: c.code,
+      orders: Math.floor((500 + Math.random() * 8000) * w),
+      revenue: +((100000 + Math.random() * 2500000) * w).toFixed(2),
+      users: Math.floor((2000 + Math.random() * 30000) * w),
+      growth: +(Math.random() * 40 - 5).toFixed(1)
+    };
+  }).sort((a, b) => b.revenue - a.revenue).map((c, i) => ({ ...c, rank: i + 1 }));
 }
 
-function generateTodos() {
+function generateTodos(city, store) {
   const templates = [
     { type: 'urgent', icon: '🔥', title: '异常订单处理', desc: '发现 {n} 笔异常支付订单待审核', color: '#ff6b6b' },
     { type: 'warning', icon: '⚠️', title: '库存预警', desc: '{n} 个门店商品库存不足', color: '#ffa94d' },
@@ -67,12 +121,13 @@ function generateTodos() {
     { type: 'info', icon: '📝', title: '财务对账提醒', desc: '本月 {n} 笔对账单待确认', color: '#32d583' },
     { type: 'urgent', icon: '🚨', title: '系统告警', desc: '{n} 个门店数据上报异常', color: '#ff6b9d' }
   ];
+  const factor = store ? 0.3 : (city ? 0.6 : 1);
   return templates
     .map(t => ({
       ...t,
       id: Math.random().toString(36).slice(2, 10),
-      count: Math.floor(2 + Math.random() * 48),
-      desc: t.desc.replace('{n}', Math.floor(2 + Math.random() * 48)),
+      count: Math.floor((2 + Math.random() * 48) * factor),
+      desc: t.desc.replace('{n}', Math.floor((2 + Math.random() * 48) * factor)),
       time: `${Math.floor(Math.random() * 24)}小时前`
     }))
     .sort((a, b) => {
@@ -81,44 +136,79 @@ function generateTodos() {
     });
 }
 
+app.get('/api/dashboard/cities/list', (req, res) => {
+  res.json({
+    code: 0,
+    data: cityList.map(c => ({ name: c.name, code: c.code })),
+    message: 'success'
+  });
+});
+
+app.get('/api/dashboard/stores', (req, res) => {
+  const { cityCode } = req.query;
+  let result = storeList.filter(s => s.status === 'active');
+  if (cityCode) {
+    result = result.filter(s => s.cityCode === cityCode);
+  }
+  res.json({ code: 0, data: result, message: 'success' });
+});
+
 app.get('/api/dashboard/stats', (req, res) => {
+  const { city, store, startDate, endDate } = req.query;
+  const weight = getFilterWeight(city, store);
+  const timeFactor = getTimeRangeFactor(startDate, endDate);
+  const factor = weight * timeFactor;
+
+  const baseUsers = city ? 28000 : 128650;
+  const baseOrders = city ? 22000 : 98720;
+  const baseRevenue = city ? 3200000 : 12865432.5;
+  const baseStores = store ? 1 : (city ? 30 : 256);
+
   const data = {
-    totalUsers: randomFluctuate(mockData.totalUsers, 50),
-    todayUsers: randomFluctuate(mockData.todayUsers, 30),
-    totalOrders: randomFluctuate(mockData.totalOrders, 30),
-    todayOrders: randomFluctuate(mockData.todayOrders, 20),
-    totalRevenue: +(mockData.totalRevenue + Math.random() * 2000).toFixed(2),
-    todayRevenue: +(mockData.todayRevenue + Math.random() * 1000).toFixed(2),
-    totalStores: mockData.totalStores,
-    todayStores: randomFluctuate(mockData.todayStores, 2),
+    totalUsers: Math.floor(baseUsers * factor),
+    todayUsers: Math.floor((city ? 95 : 432) * weight),
+    totalOrders: Math.floor(baseOrders * factor),
+    todayOrders: Math.floor((city ? 56 : 256) * weight),
+    totalRevenue: +(baseRevenue * factor).toFixed(2),
+    todayRevenue: +((city ? 18000 : 86520) * weight).toFixed(2),
+    totalStores: baseStores,
+    todayStores: store ? (Math.random() > 0.5 ? 1 : 0) : Math.floor(3 * weight),
     updatedAt: new Date().toISOString()
   };
   res.json({ code: 0, data, message: 'success' });
 });
 
 app.get('/api/dashboard/today', (req, res) => {
+  const { city, store } = req.query;
+  const weight = getFilterWeight(city, store);
   const hours = [];
-  for (let i = 0; i <= new Date().getHours(); i++) {
+  const currentHour = new Date().getHours();
+  for (let i = 0; i <= currentHour; i++) {
     hours.push(`${String(i).padStart(2, '0')}:00`);
   }
+
+  const baseOrder = city ? (store ? 3 : 18) : (store ? 5 : 30);
+  const baseRevenue = city ? (store ? 1200 : 6500) : (store ? 2000 : 10000);
+  const baseUser = city ? (store ? 4 : 22) : (store ? 6 : 35);
+
   const data = {
     orders: {
-      total: randomFluctuate(mockData.todayOrders, 20),
-      goal: 500,
+      total: Math.floor(baseOrder * hours.length * weight * (0.8 + Math.random() * 0.4)),
+      goal: Math.floor(500 * weight),
       rate: 0,
-      hourly: hours.map(() => Math.floor(5 + Math.random() * 35))
+      hourly: hours.map(() => Math.floor((5 + Math.random() * 35) * weight))
     },
     revenue: {
-      total: +(mockData.todayRevenue + Math.random() * 3000).toFixed(2),
-      goal: 150000,
+      total: +(baseRevenue * hours.length * weight * (0.8 + Math.random() * 0.4)).toFixed(2),
+      goal: Math.floor(150000 * weight),
       rate: 0,
-      hourly: hours.map(() => +(2000 + Math.random() * 12000).toFixed(2))
+      hourly: hours.map(() => +((2000 + Math.random() * 12000) * weight).toFixed(2))
     },
     newUsers: {
-      total: randomFluctuate(mockData.todayUsers, 30),
-      goal: 600,
+      total: Math.floor(baseUser * hours.length * weight * (0.8 + Math.random() * 0.4)),
+      goal: Math.floor(600 * weight),
       rate: 0,
-      hourly: hours.map(() => Math.floor(10 + Math.random() * 50))
+      hourly: hours.map(() => Math.floor((10 + Math.random() * 50) * weight))
     },
     updatedAt: new Date().toISOString()
   };
@@ -129,25 +219,56 @@ app.get('/api/dashboard/today', (req, res) => {
 });
 
 app.get('/api/dashboard/trend', (req, res) => {
+  const { period, city, store, startDate, endDate } = req.query;
+  const weight = getFilterWeight(city, store);
+  let days = period === '30d' ? 30 : 14;
+
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    days = Math.min(90, Math.max(2, Math.ceil((end - start) / (24 * 3600 * 1000))));
+  }
+
   const data = {
-    period: req.query.period || '14d',
-    ...generateTrendData(req.query.period === '30d' ? 30 : 14),
+    period: period || (startDate && endDate ? 'custom' : '14d'),
+    ...generateTrendData(days, weight),
     updatedAt: new Date().toISOString()
   };
   res.json({ code: 0, data, message: 'success' });
 });
 
 app.get('/api/dashboard/cities', (req, res) => {
+  const { store, startDate, endDate } = req.query;
+  const weight = getFilterWeight(null, store);
+  const timeFactor = getTimeRangeFactor(startDate, endDate);
+
+  let ranking = generateCityRanking(weight * timeFactor);
+  if (store) {
+    const s = storeList.find(x => x.id === store);
+    if (s) {
+      ranking = ranking.filter(c => c.code === s.cityCode).map(c => ({
+        ...c,
+        name: s.name,
+        code: s.id,
+        orders: Math.floor(c.orders * 0.15),
+        revenue: +(c.revenue * 0.15).toFixed(2),
+        users: Math.floor(c.users * 0.15),
+        isStore: true
+      }));
+    }
+  }
+
   const data = {
-    ranking: generateCityRanking(),
+    ranking,
     updatedAt: new Date().toISOString()
   };
   res.json({ code: 0, data, message: 'success' });
 });
 
 app.get('/api/dashboard/todos', (req, res) => {
+  const { city, store } = req.query;
   const data = {
-    items: generateTodos(),
+    items: generateTodos(city, store),
     totalCount: 0,
     urgentCount: 0,
     updatedAt: new Date().toISOString()
@@ -403,5 +524,7 @@ app.listen(PORT, () => {
   console.log(`趋势数据接口: http://localhost:${PORT}/api/dashboard/trend`);
   console.log(`城市排行接口: http://localhost:${PORT}/api/dashboard/cities`);
   console.log(`待办事项接口: http://localhost:${PORT}/api/dashboard/todos`);
+  console.log(`城市列表接口: http://localhost:${PORT}/api/dashboard/cities/list`);
+  console.log(`门店列表接口: http://localhost:${PORT}/api/dashboard/stores`);
   console.log(`公告管理接口: http://localhost:${PORT}/api/announcements`);
 });

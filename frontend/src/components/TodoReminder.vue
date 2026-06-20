@@ -43,8 +43,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, watch, onMounted } from 'vue';
 import { getDashboardTodos } from '../api';
+
+const props = defineProps({
+  filterParams: {
+    type: Object,
+    default: () => ({})
+  }
+});
 
 const items = reactive([]);
 const summary = reactive({ totalCount: 0, urgentCount: 0 });
@@ -53,15 +60,23 @@ const handleClick = (item) => {
   console.log('处理事项:', item.title);
 };
 
-onMounted(async () => {
+const fetchData = async () => {
   try {
-    const res = await getDashboardTodos();
+    const res = await getDashboardTodos(props.filterParams);
     if (res.code === 0) {
       items.splice(0, items.length, ...res.data.items);
       summary.totalCount = res.data.totalCount;
       summary.urgentCount = res.data.urgentCount;
     }
   } catch (e) { console.error(e); }
+};
+
+watch(() => props.filterParams, () => {
+  fetchData();
+}, { deep: true });
+
+onMounted(() => {
+  fetchData();
 });
 </script>
 

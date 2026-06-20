@@ -123,8 +123,15 @@
 </template>
 
 <script setup>
-import { computed, reactive, onMounted } from 'vue';
+import { computed, reactive, watch, onMounted } from 'vue';
 import { getDashboardToday } from '../api';
+
+const props = defineProps({
+  filterParams: {
+    type: Object,
+    default: () => ({})
+  }
+});
 
 const data = reactive({
   orders: { total: 0, goal: 500, rate: 0, hourly: [] },
@@ -152,11 +159,19 @@ const getBarHeight = (v, arr) => {
   return Math.max((v / max) * 100, 4);
 };
 
-onMounted(async () => {
+const fetchData = async () => {
   try {
-    const res = await getDashboardToday();
+    const res = await getDashboardToday(props.filterParams);
     if (res.code === 0) Object.assign(data, res.data);
   } catch (e) { console.error(e); }
+};
+
+watch(() => props.filterParams, () => {
+  fetchData();
+}, { deep: true });
+
+onMounted(() => {
+  fetchData();
 });
 </script>
 

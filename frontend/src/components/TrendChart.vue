@@ -24,9 +24,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { getDashboardTrend } from '../api';
+
+const props = defineProps({
+  filterParams: {
+    type: Object,
+    default: () => ({})
+  }
+});
 
 const chartRef = ref(null);
 const period = ref('14d');
@@ -166,7 +173,8 @@ const initChart = async () => {
 
 const loadData = async () => {
   try {
-    const res = await getDashboardTrend(period.value);
+    const params = { period: period.value, ...props.filterParams };
+    const res = await getDashboardTrend(params);
     if (res.code === 0 && chartInstance) {
       chartInstance.setOption(buildOption(res.data), true);
     }
@@ -182,6 +190,10 @@ const switchPeriod = (p) => {
   period.value = p;
   loadData();
 };
+
+watch(() => props.filterParams, () => {
+  loadData();
+}, { deep: true });
 
 onMounted(async () => {
   await nextTick();

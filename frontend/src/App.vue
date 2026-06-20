@@ -32,6 +32,8 @@
 
     <main class="dashboard-main">
       <div class="content-wrap">
+        <FilterBar v-model="filterState" @change="handleFilterChange" />
+
         <section class="stats-section">
           <div class="stats-grid">
             <StatCard
@@ -66,15 +68,15 @@
           </div>
         </section>
 
-        <TodayData />
+        <TodayData :filter-params="filterParams" />
 
         <div class="two-col-row">
           <div class="col-left">
-            <TrendChart />
-            <CityRanking />
+            <TrendChart :filter-params="filterParams" />
+            <CityRanking :filter-params="filterParams" />
           </div>
           <div class="col-right">
-            <TodoReminder />
+            <TodoReminder :filter-params="filterParams" />
           </div>
         </div>
 
@@ -85,13 +87,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
 import StatCard from './components/StatCard.vue';
 import TodayData from './components/TodayData.vue';
 import TrendChart from './components/TrendChart.vue';
 import CityRanking from './components/CityRanking.vue';
 import TodoReminder from './components/TodoReminder.vue';
 import AnnouncementPanel from './components/AnnouncementPanel.vue';
+import FilterBar from './components/FilterBar.vue';
 import { getDashboardStats } from './api';
 
 const loading = ref(false);
@@ -108,12 +111,32 @@ const stats = reactive({
   updatedAt: null
 });
 
+const filterState = ref({
+  city: '',
+  store: '',
+  timeRange: '14d',
+  startDate: '',
+  endDate: ''
+});
+
+const filterParams = computed(() => {
+  const params = {};
+  const state = filterState.value;
+  if (state.city) params.city = state.city;
+  if (state.store) params.store = state.store;
+  if (state.timeRange === 'custom' && state.startDate && state.endDate) {
+    params.startDate = state.startDate;
+    params.endDate = state.endDate;
+  }
+  return params;
+});
+
 let timer = null;
 
 const fetchData = async () => {
   loading.value = true;
   try {
-    const res = await getDashboardStats();
+    const res = await getDashboardStats(filterParams.value);
     if (res.code === 0) {
       Object.assign(stats, res.data);
       error.value = false;
@@ -124,6 +147,10 @@ const fetchData = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const handleFilterChange = () => {
+  fetchData();
 };
 
 const formatTime = (isoString) => {
