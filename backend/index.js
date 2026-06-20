@@ -114,22 +114,75 @@ function generateCityRanking(weight = 1) {
 
 function generateTodos(city, store) {
   const templates = [
-    { type: 'urgent', icon: '🔥', title: '异常订单处理', desc: '发现 {n} 笔异常支付订单待审核', color: '#ff6b6b' },
-    { type: 'warning', icon: '⚠️', title: '库存预警', desc: '{n} 个门店商品库存不足', color: '#ffa94d' },
-    { type: 'info', icon: '📋', title: '新商户入驻审核', desc: '{n} 家新门店提交入驻申请', color: '#00d4ff' },
-    { type: 'warning', icon: '💬', title: '用户投诉反馈', desc: '{n} 条用户投诉待处理', color: '#7c5cff' },
-    { type: 'info', icon: '📝', title: '财务对账提醒', desc: '本月 {n} 笔对账单待确认', color: '#32d583' },
-    { type: 'urgent', icon: '🚨', title: '系统告警', desc: '{n} 个门店数据上报异常', color: '#ff6b9d' }
+    {
+      type: 'urgent',
+      category: 'product',
+      icon: '�',
+      title: '商品审核',
+      desc: '{n} 件新上架商品待审核',
+      color: '#ff6b6b',
+      action: 'goProductAudit'
+    },
+    {
+      type: 'warning',
+      category: 'franchisee',
+      icon: '📝',
+      title: '加盟商审核',
+      desc: '{n} 家新加盟商入驻申请待审核',
+      color: '#ffa94d',
+      action: 'goFranchiseeAudit'
+    },
+    {
+      type: 'warning',
+      category: 'withdraw',
+      icon: '�',
+      title: '提现审核',
+      desc: '{n} 笔商户提现申请待审核',
+      color: '#00d4ff',
+      action: 'goWithdrawAudit'
+    },
+    {
+      type: 'urgent',
+      category: 'aftersale',
+      icon: '�',
+      title: '售后工单',
+      desc: '{n} 条售后工单待处理',
+      color: '#7c5cff',
+      action: 'goAftersale'
+    },
+    {
+      type: 'info',
+      category: 'order',
+      icon: '�',
+      title: '异常订单',
+      desc: '{n} 笔异常支付订单待处理',
+      color: '#32d583',
+      action: 'goOrderAudit'
+    },
+    {
+      type: 'info',
+      category: 'feedback',
+      icon: '�',
+      title: '用户反馈',
+      desc: '{n} 条用户投诉反馈待处理',
+      color: '#ff6b9d',
+      action: 'goFeedback'
+    }
   ];
   const factor = store ? 0.3 : (city ? 0.6 : 1);
   return templates
-    .map(t => ({
-      ...t,
-      id: Math.random().toString(36).slice(2, 10),
-      count: Math.floor((2 + Math.random() * 48) * factor),
-      desc: t.desc.replace('{n}', Math.floor((2 + Math.random() * 48) * factor)),
-      time: `${Math.floor(Math.random() * 24)}小时前`
-    }))
+    .map(t => {
+      const count = Math.floor((2 + Math.random() * 48) * factor);
+      const isUrgent = t.type === 'urgent';
+      return {
+        ...t,
+        id: t.category + '-' + Math.random().toString(36).slice(2, 10),
+        count,
+        desc: t.desc.replace('{n}', count),
+        time: `${isUrgent ? Math.floor(Math.random() * 6) : Math.floor(Math.random() * 24)}小时前`,
+        urgent: isUrgent
+      };
+    })
     .sort((a, b) => {
       const order = { urgent: 0, warning: 1, info: 2 };
       return order[a.type] - order[b.type];

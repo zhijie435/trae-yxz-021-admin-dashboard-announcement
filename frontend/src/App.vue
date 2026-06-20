@@ -76,7 +76,7 @@
             <CityRanking :filter-params="filterParams" />
           </div>
           <div class="col-right">
-            <TodoReminder :filter-params="filterParams" />
+            <TodoReminder :filter-params="filterParams" @navigate="handleTodoNavigate" />
           </div>
         </div>
 
@@ -151,6 +151,10 @@ const fetchData = async () => {
 
 const handleFilterChange = () => {
   fetchData();
+};
+
+const handleTodoNavigate = (route) => {
+  console.log('跳转待处理事项:', route);
 };
 
 const formatTime = (isoString) => {

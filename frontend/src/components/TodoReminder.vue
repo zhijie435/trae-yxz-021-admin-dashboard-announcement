@@ -7,7 +7,7 @@
         <span v-if="summary.totalCount > 0" class="badge">{{ summary.totalCount }}</span>
         <span v-if="summary.urgentCount > 0" class="badge urgent">紧急 {{ summary.urgentCount }}</span>
       </h2>
-      <div class="view-all">
+      <div class="view-all" @click="handleViewAll">
         查看全部 →
       </div>
     </div>
@@ -23,7 +23,7 @@
         >
           <div class="todo-icon-wrap">
             <span class="todo-icon">{{ item.icon }}</span>
-            <span v-if="item.type === 'urgent'" class="pulse-dot"></span>
+            <span v-if="item.urgent || item.type === 'urgent'" class="pulse-dot"></span>
           </div>
           <div class="todo-content">
             <div class="todo-title-row">
@@ -34,10 +34,14 @@
           </div>
           <div class="todo-right">
             <span class="todo-time">{{ item.time }}</span>
-            <span class="todo-arrow">›</span>
+            <span class="todo-action-btn">处理</span>
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-if="toast.show" class="toast" :class="toast.type">
+      {{ toast.message }}
     </div>
   </div>
 </template>
@@ -45,6 +49,8 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue';
 import { getDashboardTodos } from '../api';
+
+const emit = defineEmits(['navigate']);
 
 const props = defineProps({
   filterParams: {
@@ -56,8 +62,40 @@ const props = defineProps({
 const items = reactive([]);
 const summary = reactive({ totalCount: 0, urgentCount: 0 });
 
+const toast = reactive({
+  show: false,
+  message: '',
+  type: 'info'
+});
+
+const showToast = (message, type = 'info') => {
+  toast.message = message;
+  toast.type = type;
+  toast.show = true;
+  setTimeout(() => { toast.show = false; }, 2500);
+};
+
+const actionRouteMap = {
+  goProductAudit: { name: '商品审核管理', path: '/product/audit' },
+  goFranchiseeAudit: { name: '加盟商审核管理', path: '/franchisee/audit' },
+  goWithdrawAudit: { name: '提现审核管理', path: '/finance/withdraw' },
+  goAftersale: { name: '售后工单管理', path: '/aftersale/list' },
+  goOrderAudit: { name: '异常订单管理', path: '/order/abnormal' },
+  goFeedback: { name: '用户反馈管理', path: '/feedback/list' }
+};
+
 const handleClick = (item) => {
-  console.log('处理事项:', item.title);
+  const route = actionRouteMap[item.action];
+  if (route) {
+    emit('navigate', { ...route, category: item.category, item });
+    showToast(`正在跳转到【${route.name}】...`, 'info');
+  } else {
+    showToast(`打开【${item.title}】处理页面`, 'info');
+  }
+};
+
+const handleViewAll = () => {
+  showToast('跳转到待处理事项列表页面', 'info');
 };
 
 const fetchData = async () => {
@@ -264,8 +302,69 @@ onMounted(() => {
   transition: all 0.2s;
 }
 
-.todo-item:hover .todo-arrow {
+.todo-item:hover .todo-action-btn {
+  color: #fff;
+  background: var(--item-color);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--item-color) 35%, transparent);
+  transform: scale(1.05);
+}
+
+.todo-action-btn {
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--item-color);
-  transform: translateX(2px);
+  background: color-mix(in srgb, var(--item-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--item-color) 25%, transparent);
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+
+.todo-section {
+  position: relative;
+}
+
+.toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(15, 25, 45, 0.95);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  backdrop-filter: blur(12px);
+  animation: toast-in 0.3s ease;
+}
+
+.toast.info {
+  border-color: rgba(0, 212, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 212, 255, 0.2);
+}
+
+.toast.success {
+  border-color: rgba(50, 213, 131, 0.4);
+  box-shadow: 0 8px 32px rgba(50, 213, 131, 0.2);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .todo-item { grid-template-columns: 44px 1fr auto; }
 }
 </style>
