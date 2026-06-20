@@ -32,7 +32,7 @@
           :key="tab.key"
           class="filter-tab"
           :class="{ active: filters.status === tab.key }"
-          @click="filters.status = tab.key; fetchData()"
+          @click="handleStatusTabClick(tab.key)"
         >
           {{ tab.label }}
           <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
@@ -90,7 +90,7 @@
                   <span class="meta-dot">·</span>
                   <span class="meta-item">{{ item.publisher }}</span>
                   <span class="meta-dot">·</span>
-                  <span class="meta-item">{{ formatTime(item.publishTime || item.createdAt) }}</span>
+                  <span class="meta-item">{{ formatRelativeTime(item.publishTime || item.createdAt) }}</span>
                 </div>
               </div>
             </div>
@@ -147,351 +147,56 @@
       >›</div>
     </div>
 
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-container">
-        <div class="modal-header">
-          <h3>{{ formData.id ? '编辑公告' : '发布新公告' }}</h3>
-          <div class="modal-close" @click="closeModal">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </div>
-        </div>
-
-        <div class="modal-body">
-          <div class="form-row">
-            <label class="form-label">公告类型 <span class="required">*</span></label>
-            <div class="type-picker">
-              <div
-                v-for="(v, k) in types"
-                :key="k"
-                class="type-option"
-                :class="{ active: formData.type === k }"
-                :style="{ '--type-color': v.color }"
-                @click="formData.type = k"
-              >
-                <span class="type-icon">{{ v.icon }}</span>
-                <span class="type-label">{{ v.label }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-row two-col">
-            <div class="form-col">
-              <label class="form-label">公告级别</label>
-              <select v-model="formData.level" class="form-select">
-                <option v-for="(v, k) in levels" :key="k" :value="k">{{ v.label }}</option>
-              </select>
-            </div>
-            <div class="form-col">
-              <label class="form-label">发布范围</label>
-              <select v-model="formData.scope" class="form-select">
-                <option value="全部门店">全部门店</option>
-                <option value="华东区域">华东区域</option>
-                <option value="华北区域">华北区域</option>
-                <option value="华南区域">华南区域</option>
-                <option value="华中区域">华中区域</option>
-                <option value="西南区域">西南区域</option>
-                <option value="西北区域">西北区域</option>
-                <option value="东北区域">东北区域</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <label class="form-label">公告标题 <span class="required">*</span></label>
-            <input
-              v-model="formData.title"
-              type="text"
-              class="form-input"
-              placeholder="请输入公告标题，不超过50字"
-              maxlength="50"
-            />
-            <div class="char-count">{{ (formData.title || '').length }}/50</div>
-          </div>
-
-          <div class="form-row">
-            <label class="form-label">公告内容 <span class="required">*</span></label>
-            <textarea
-              v-model="formData.content"
-              class="form-textarea"
-              placeholder="请输入公告详细内容..."
-              rows="6"
-              maxlength="500"
-            ></textarea>
-            <div class="char-count">{{ (formData.content || '').length }}/500</div>
-          </div>
-
-          <div class="form-row">
-            <label class="form-label">发布人</label>
-            <input
-              v-model="formData.publisher"
-              type="text"
-              class="form-input"
-              placeholder="系统管理员"
-            />
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <div class="btn btn-ghost" @click="closeModal">取消</div>
-          <div v-if="!formData.id || formData.status === 'draft'" class="btn btn-secondary" @click="handleSave('draft')">
-            保存草稿
-          </div>
-          <div class="btn btn-primary" @click="handleSave('published')">
-            {{ formData.id && formData.status === 'published' ? '更新公告' : '立即发布' }}
-          </div>
-        </div>
-      </div>
-    </div>
+    <AnnouncementModal
+      v-if="showModal"
+      :form-data="formData"
+      :types="types"
+      :levels="levels"
+      :submitting="submitting"
+      @close="closeModal"
+      @save="handleSave"
+    />
 
     <div v-if="toast.show" class="toast" :class="toast.type">{{ toast.message }}</div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
-import {
-  getAnnouncements,
-  createAnnouncement,
-  updateAnnouncement,
-  deleteAnnouncement,
-  getAnnouncementTypes,
-  getAnnouncementVersion
-} from '../api';
+import { formatRelativeTime } from '../utils';
+import { useAnnouncement, ANNOUNCEMENT_SCOPE_OPTIONS } from '../composables/useAnnouncement';
+import AnnouncementModal from './AnnouncementModal.vue';
 
-const types = reactive({});
-const levels = reactive({});
-const items = reactive([]);
-const pagination = reactive({ page: 1, pageSize: 5, total: 0 });
-const stats = reactive({ total: 0, published: 0, draft: 0, urgent: 0 });
-const showModal = ref(false);
-const submitting = ref(false);
-const currentVersion = ref(-1);
-let pollTimer = null;
-const POLL_INTERVAL = 5000;
+const {
+  types,
+  levels,
+  items,
+  pagination,
+  stats,
+  showModal,
+  submitting,
+  formData,
+  filters,
+  toast,
+  statusTabs,
+  totalPages,
+  pageNumbers,
+  fetchData,
+  goPage,
+  openPublishModal,
+  closeModal,
+  handleSave,
+  handlePublish,
+  handleDelete
+} = useAnnouncement();
 
-const checkVersion = async () => {
-  try {
-    const res = await getAnnouncementVersion();
-    if (res.code === 0) {
-      const newVersion = res.data.version;
-      if (currentVersion.value !== -1 && newVersion !== currentVersion.value) {
-        fetchData();
-      }
-      currentVersion.value = newVersion;
-    }
-  } catch (e) {
-    console.error('检查公告版本失败', e);
-  }
-};
-
-const startPolling = () => {
-  if (pollTimer) return;
-  pollTimer = setInterval(checkVersion, POLL_INTERVAL);
-};
-
-const stopPolling = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-};
-
-const filters = reactive({
-  type: 'all',
-  level: 'all',
-  status: 'all'
-});
-
-const statusTabs = computed(() => [
-  { key: 'all', label: '全部', count: stats.total },
-  { key: 'published', label: '已发布', count: stats.published },
-  { key: 'draft', label: '草稿', count: stats.draft }
-]);
-
-const totalPages = computed(() => Math.ceil(pagination.total / pagination.pageSize));
-const pageNumbers = computed(() => {
-  const arr = [];
-  const total = totalPages.value;
-  const current = pagination.page;
-  let start = Math.max(1, current - 2);
-  let end = Math.min(total, start + 4);
-  if (end - start < 4) start = Math.max(1, end - 4);
-  for (let i = start; i <= end; i++) arr.push(i);
-  return arr;
-});
-
-const emptyForm = () => ({
-  id: null,
-  type: 'rule_update',
-  level: 'normal',
-  title: '',
-  content: '',
-  scope: '全部门店',
-  publisher: '',
-  status: 'published'
-});
-
-const formData = reactive(emptyForm());
-
-const toast = reactive({ show: false, message: '', type: 'success' });
-const showToast = (message, type = 'success') => {
-  toast.message = message;
-  toast.type = type;
-  toast.show = true;
-  setTimeout(() => { toast.show = false; }, 2500);
-};
-
-const fetchData = async () => {
-  try {
-    const params = {
-      page: pagination.page,
-      pageSize: pagination.pageSize
-    };
-    if (filters.type !== 'all') params.type = filters.type;
-    if (filters.level !== 'all') params.level = filters.level;
-    if (filters.status !== 'all') params.status = filters.status;
-
-    const res = await getAnnouncements(params);
-    if (res.code === 0) {
-      items.splice(0, items.length, ...res.data.items);
-      pagination.total = res.data.total;
-      Object.assign(stats, res.data.stats);
-    }
-
-    const verRes = await getAnnouncementVersion();
-    if (verRes.code === 0) {
-      currentVersion.value = verRes.data.version;
-    }
-  } catch (e) { console.error(e); }
-};
-
-const goPage = (p) => {
-  if (p < 1 || p > totalPages.value) return;
-  pagination.page = p;
+const handleStatusTabClick = (key) => {
+  filters.status = key;
+  pagination.page = 1;
   fetchData();
 };
 
-const formatTime = (iso) => {
-  const d = new Date(iso);
-  const now = new Date();
-  const diff = (now - d) / 1000;
-  if (diff < 60) return '刚刚';
-  if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}天前`;
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
-
-const openPublishModal = (item = null) => {
-  if (item) {
-    Object.assign(formData, {
-      id: item.id,
-      type: item.type,
-      level: item.level,
-      title: item.title,
-      content: item.content,
-      scope: item.scope,
-      publisher: item.publisher,
-      status: item.status
-    });
-  } else {
-    Object.assign(formData, emptyForm());
-  }
-  showModal.value = true;
-};
-
-const closeModal = () => {
-  showModal.value = false;
-  Object.assign(formData, emptyForm());
-};
-
-const handleSave = async (status) => {
-  if (!formData.title.trim()) return showToast('请填写公告标题', 'error');
-  if (!formData.content.trim()) return showToast('请填写公告内容', 'error');
-  if (!formData.type) return showToast('请选择公告类型', 'error');
-  if (submitting.value) return;
-  submitting.value = true;
-
-  try {
-    const payload = {
-      type: formData.type,
-      level: formData.level,
-      title: formData.title,
-      content: formData.content,
-      scope: formData.scope,
-      publisher: formData.publisher || '系统管理员',
-      status
-    };
-
-    let res;
-    if (formData.id) {
-      res = await updateAnnouncement(formData.id, payload);
-    } else {
-      res = await createAnnouncement(payload);
-    }
-
-    if (res.code === 0) {
-      showToast(res.message || '操作成功', 'success');
-      closeModal();
-      pagination.page = 1;
-      fetchData();
-    } else {
-      showToast(res.message || '操作失败', 'error');
-    }
-  } catch (e) {
-    showToast('网络错误，请稍后重试', 'error');
-    console.error(e);
-  } finally {
-    submitting.value = false;
-  }
-};
-
-const handlePublish = async (item) => {
-  try {
-    const res = await updateAnnouncement(item.id, { status: 'published' });
-    if (res.code === 0) {
-      showToast('发布成功', 'success');
-      fetchData();
-    } else {
-      showToast(res.message || '发布失败', 'error');
-    }
-  } catch (e) {
-    showToast('网络错误', 'error');
-  }
-};
-
-const handleDelete = async (item) => {
-  if (!confirm(`确定要删除公告"${item.title}"吗？此操作不可恢复。`)) return;
-  try {
-    const res = await deleteAnnouncement(item.id);
-    if (res.code === 0) {
-      showToast('删除成功', 'success');
-      fetchData();
-    } else {
-      showToast(res.message || '删除失败', 'error');
-    }
-  } catch (e) {
-    showToast('网络错误', 'error');
-  }
-};
-
-onMounted(async () => {
-  try {
-    const typeRes = await getAnnouncementTypes();
-    if (typeRes.code === 0) {
-      Object.assign(types, typeRes.data.types);
-      Object.assign(levels, typeRes.data.levels);
-    }
-  } catch (e) { console.error(e); }
-  fetchData();
-  startPolling();
-});
-
-onUnmounted(() => {
-  stopPolling();
+defineExpose({
+  scopeOptions: ANNOUNCEMENT_SCOPE_OPTIONS
 });
 </script>
 
@@ -953,261 +658,6 @@ onUnmounted(() => {
 .page-btn.disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(5, 8, 18, 0.75);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-container {
-  width: 100%;
-  max-width: 640px;
-  max-height: 90vh;
-  background: linear-gradient(145deg, #141e32 0%, #0a1220 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
-  display: flex;
-  flex-direction: column;
-  animation: slideUp 0.25s ease;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 24px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.modal-header h3 {
-  font-size: 18px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.modal-close {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-}
-
-.modal-body {
-  padding: 24px 28px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.form-row {
-  margin-bottom: 20px;
-  position: relative;
-}
-
-.form-row.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.form-col {
-  min-width: 0;
-}
-
-.form-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.75);
-  margin-bottom: 10px;
-  letter-spacing: 0.3px;
-}
-
-.required {
-  color: #ff6b6b;
-  margin-left: 2px;
-}
-
-.type-picker {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.type-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1.5px solid rgba(255, 255, 255, 0.06);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.type-option:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: color-mix(in srgb, var(--type-color) 35%, rgba(255,255,255,0.06));
-}
-
-.type-option.active {
-  background: color-mix(in srgb, var(--type-color) 12%, transparent);
-  border-color: var(--type-color);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--type-color) 15%, transparent);
-}
-
-.type-icon {
-  font-size: 26px;
-}
-
-.type-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.form-input,
-.form-select,
-.form-textarea {
-  width: 100%;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1.5px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
-  outline: none;
-  transition: all 0.2s;
-  font-family: inherit;
-  line-height: 1.5;
-}
-
-.form-input::placeholder,
-.form-textarea::placeholder {
-  color: rgba(255, 255, 255, 0.25);
-}
-
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
-  border-color: rgba(255, 107, 157, 0.5);
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
-}
-
-.form-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  padding-right: 40px;
-  cursor: pointer;
-}
-
-.form-select option {
-  background: #141e32;
-  color: #fff;
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 120px;
-  max-height: 240px;
-}
-
-.char-count {
-  position: absolute;
-  right: 2px;
-  bottom: -18px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.25);
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 20px 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.btn {
-  padding: 11px 24px;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-}
-
-.btn-ghost {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.btn-ghost:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #ff6b9d 0%, #ffa94d 100%);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(255, 107, 157, 0.35);
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(255, 107, 157, 0.5);
 }
 
 .toast {

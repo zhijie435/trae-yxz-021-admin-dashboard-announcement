@@ -87,7 +87,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import StatCard from './components/StatCard.vue';
 import TodayData from './components/TodayData.vue';
 import TrendChart from './components/TrendChart.vue';
@@ -96,6 +96,7 @@ import TodoReminder from './components/TodoReminder.vue';
 import AnnouncementPanel from './components/AnnouncementPanel.vue';
 import FilterBar from './components/FilterBar.vue';
 import { getDashboardStats } from './api';
+import { getDateRangeFromTimeRange, formatTime } from './utils';
 
 const loading = ref(false);
 const error = ref(false);
@@ -118,44 +119,6 @@ const filterState = ref({
   startDate: '',
   endDate: ''
 });
-
-const getDateRangeFromTimeRange = (timeRange, startDate, endDate) => {
-  const now = new Date();
-  const formatDateStr = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  switch (timeRange) {
-    case 'today': {
-      const today = formatDateStr(now);
-      return { startDate: today, endDate: today };
-    }
-    case '7d': {
-      const end = formatDateStr(now);
-      const start = new Date(now.getTime() - 6 * 24 * 3600 * 1000);
-      return { startDate: formatDateStr(start), endDate: end };
-    }
-    case '14d': {
-      const end = formatDateStr(now);
-      const start = new Date(now.getTime() - 13 * 24 * 3600 * 1000);
-      return { startDate: formatDateStr(start), endDate: end };
-    }
-    case '30d': {
-      const end = formatDateStr(now);
-      const start = new Date(now.getTime() - 29 * 24 * 3600 * 1000);
-      return { startDate: formatDateStr(start), endDate: end };
-    }
-    case 'custom': {
-      if (startDate && endDate) return { startDate, endDate };
-      return {};
-    }
-    default:
-      return {};
-  }
-};
 
 const filterParams = computed(() => {
   const params = {};
@@ -192,11 +155,6 @@ const handleFilterChange = () => {
 
 const handleTodoNavigate = (route) => {
   console.log('跳转待处理事项:', route);
-};
-
-const formatTime = (isoString) => {
-  const d = new Date(isoString);
-  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
 onMounted(() => {

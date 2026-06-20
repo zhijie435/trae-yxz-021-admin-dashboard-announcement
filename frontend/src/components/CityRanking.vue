@@ -2,28 +2,26 @@
   <div class="city-section">
     <div class="section-header">
       <h2 class="section-title">
-        <span class="title-bar"></span>
-        城市数据排行
-      </h2>
-      <div class="sort-tabs">
-        <div
-          v-for="s in sortTypes"
-          :key="s.value"
-          class="sort-tab"
-          :class="{ active: sortBy === s.value }"
-          @click="sortBy = s.value"
-        >
-          {{ s.label }}
-        </div>
+      <span class="title-bar"></span>
+      城市数据排行
+    </h2>
+    <div class="sort-tabs">
+      <div
+        v-for="s in sortTypes"
+        :key="s.value"
+        class="sort-tab"
+        :class="{ active: sortBy === s.value }"
+        @click="handleSortChange(s.value)"
+      >
+        {{ s.label }}
       </div>
     </div>
+  </div>
     <div class="city-card">
       <div class="city-list-header">
         <div class="col-rank">排名</div>
         <div class="col-city">城市</div>
-        <div class="col-metric">
-          {{ getSortLabel() }}
-        </div>
+        <div class="col-metric">{{ currentSortLabel }}</div>
         <div class="col-growth">同比</div>
         <div class="col-bar">占比</div>
       </div>
@@ -33,6 +31,7 @@
           :key="city.code"
           class="city-item"
           :class="'rank-' + (idx + 1)"
+          @click="handleCityClick(city)"
         >
           <div class="col-rank">
             <span class="rank-badge" :class="'top-' + (idx + 1)">{{ idx + 1 }}</span>
@@ -43,7 +42,7 @@
           </div>
           <div class="col-metric">
             <span class="metric-num">{{ formatMetric(city) }}</span>
-            <span class="metric-sub">{{ formatSub(city) }}</span>
+            <span class="metric-sub">{{ formatSubMetric(city) }}</span>
           </div>
           <div class="col-growth">
             <span class="growth-tag" :class="city.growth >= 0 ? 'up' : 'down'">
@@ -64,6 +63,9 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { getDashboardCities } from '../api';
+import { formatNumber, formatRevenue, deepClone } from '../utils';
+
+const emit = defineEmits(['select']);
 
 const props = defineProps({
   filterParams: {
@@ -74,43 +76,55 @@ const props = defineProps({
 
 const cities = reactive([]);
 const sortBy = ref('revenue');
-const sortTypes = [
-  { label: '营收', value: 'revenue' },
-  { label: '订单', value: 'orders' },
-  { label: '用户', value: 'users' }
+
+const SORT_TYPES = [
+  { label: '营收', value: 'revenue', metricLabel: '营收' },
+  { label: '订单', value: 'orders', metricLabel: '订单数' },
+  { label: '用户', value: 'users', metricLabel: '用户数' }
 ];
 
-const sortedCities = computed(() =>
-  [...cities].sort((a, b) => b[sortBy.value] - a[sortBy.value]).slice(0, 10)
-);
+const sortTypes = SORT_TYPES;
 
-const maxValue = computed(() =>
-  sortedCities.value.reduce((m, c) => Math.max(m, c[sortBy.value]), 0)
-);
+const currentSortLabel = computed(() => {
+  const type = SORT_TYPES.find(t => t.value === sortBy.value);
+  return type ? type.metricLabel : '营收';
+});
 
-const getSortLabel = () => {
-  const map = { revenue: '营收', orders: '订单数', users: '用户数' };
-  return map[sortBy.value];
-};
+const sortedCities = computed(() => {
+  return [...cities]
+    .sort((a, b) => b[sortBy.value] - a[sortBy.value])
+    .slice(0, 10);
+});
+
+const maxValue = computed(() => {
+  return sortedCities.value.reduce((m, c) => Math.max(m, c[sortBy.value]), 0);
+});
 
 const formatMetric = (city) => {
-  if (sortBy.value === 'revenue') {
-    return '¥' + (city.revenue / 10000).toFixed(1) + '万';
+  const value = city[sortBy.value];
+  switch (sortBy.value) {
+    case 'revenue':
+      return '¥' + formatRevenue(value);
+    case 'orders':
+      return formatNumber(value) + ' 单';
+    case 'users':
+      return formatNumber(value) + ' 人';
+    default:
+      return formatNumber(value);
   }
-  if (sortBy.value === 'orders') {
-    return city.orders.toLocaleString('zh-CN') + ' 单';
-  }
-  return city.users.toLocaleString('zh-CN') + ' 人';
 };
 
-const formatSub = (city) => {
-  if (sortBy.value === 'revenue') {
-    return city.orders.toLocaleString() + '单';
+const formatSubMetric = (city) => {
+  switch (sortBy.value) {
+    case 'revenue':
+      return formatNumber(city.orders) + '单';
+    case 'orders':
+      return '¥' + formatRevenue(city.revenue);
+    case 'users':
+      return formatNumber(city.orders) + '单';
+    default:
+      return '';
   }
-  if (sortBy.value === 'orders') {
-    return '¥' + (city.revenue / 10000).toFixed(0) + '万';
-  }
-  return city.orders.toLocaleString() + '单';
 };
 
 const getBarWidth = (city) => {
@@ -118,16 +132,32 @@ const getBarWidth = (city) => {
   return Math.max((city[sortBy.value] / maxValue.value) * 100, 3);
 };
 
+const handleSortChange = (value) => {
+  sortBy.value = value;
+};
+
+const handleCityClick = (city) => {
+  emit('select', deepClone(city));
+};
+
 const fetchData = async () => {
   try {
     const res = await getDashboardCities(props.filterParams);
-    if (res.code === 0) cities.splice(0, cities.length, ...res.data.ranking);
-  } catch (e) { console.error(e); }
+    if (res.code === 0) {
+      cities.splice(0, cities.length, ...res.data.ranking);
+    }
+  } catch (e) {
+    console.error('加载城市排行失败:', e);
+  }
 };
 
-watch(() => props.filterParams, () => {
-  fetchData();
-}, { deep: true });
+watch(
+  () => props.filterParams,
+  () => {
+    fetchData();
+  },
+  { deep: true }
+);
 
 onMounted(() => {
   fetchData();

@@ -27,6 +27,19 @@
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { getDashboardTrend } from '../api';
+import {
+  CHART_COLORS,
+  createAreaGradient,
+  createBarGradient,
+  defaultTooltip,
+  defaultLegend,
+  defaultGrid,
+  defaultXAxis,
+  createYAxis,
+  createLineSeries,
+  createBarSeries,
+  hexToRgba
+} from '../utils';
 
 const props = defineProps({
   filterParams: {
@@ -41,125 +54,74 @@ const periods = [
   { label: '近14天', value: '14d' },
   { label: '近30天', value: '30d' }
 ];
-let chartInstance = null;
 
-const buildOption = (data) => {
-  const gridColor = 'rgba(255, 255, 255, 0.05)';
-  const textColor = 'rgba(255, 255, 255, 0.55)';
+let chartInstance = null;
+let resizeObserver = null;
+
+const buildChartOption = (data) => {
+  const ordersColor = CHART_COLORS.primary;
+  const revenueColor = CHART_COLORS.accent;
+  const usersColor = CHART_COLORS.success;
+
   return {
     backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(15, 25, 45, 0.95)',
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderWidth: 1,
-      padding: [12, 16],
-      textStyle: { color: '#fff', fontSize: 13 },
-      axisPointer: { type: 'cross', lineStyle: { color: 'rgba(255,255,255,0.1)' } }
-    },
+    tooltip: { ...defaultTooltip },
     legend: {
-      data: ['订单数', '营收（万元）', '新增用户'],
-      top: 0,
-      right: 0,
-      itemGap: 28,
-      textStyle: { color: textColor, fontSize: 13 },
-      itemWidth: 14,
-      itemHeight: 8,
-      icon: 'roundRect'
+      ...defaultLegend,
+      data: ['订单数', '营收（万元）', '新增用户']
     },
-    grid: {
-      left: 40,
-      right: 40,
-      top: 60,
-      bottom: 40,
-      containLabel: true
-    },
+    grid: { ...defaultGrid },
     xAxis: {
-      type: 'category',
-      data: data.dates,
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: gridColor } },
-      axisTick: { show: false },
-      axisLabel: {
-        color: textColor,
-        fontSize: 12,
-        margin: 16
-      },
-      splitLine: { show: false }
+      ...defaultXAxis,
+      data: data.dates
     },
     yAxis: [
-      {
-        type: 'value',
-        name: '数量',
-        nameTextStyle: { color: textColor, padding: [0, 0, 0, 20] },
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { color: textColor, fontSize: 12 },
-        splitLine: { lineStyle: { color: gridColor, type: 'dashed' } }
-      },
-      {
-        type: 'value',
+      createYAxis({ name: '数量' }),
+      createYAxis({
         name: '营收',
-        nameTextStyle: { color: textColor },
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { color: textColor, fontSize: 12, formatter: '{value}万' },
-        splitLine: { show: false }
-      }
+        splitLine: { show: false },
+        axisLabel: { formatter: '{value}万' }
+      })
     ],
     series: [
-      {
+      createLineSeries({
         name: '订单数',
-        type: 'line',
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 7,
-        showSymbol: false,
         data: data.orders,
         yAxisIndex: 0,
-        lineStyle: { width: 3, color: '#00d4ff', shadowColor: 'rgba(0,212,255,0.35)', shadowBlur: 10 },
-        itemStyle: { color: '#00d4ff', borderColor: '#0a0f1e', borderWidth: 2 },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(0,212,255,0.35)' },
-            { offset: 1, color: 'rgba(0,212,255,0.01)' }
-          ])
+        lineStyle: {
+          width: 3,
+          color: ordersColor,
+          shadowColor: hexToRgba(ordersColor, 0.35),
+          shadowBlur: 10
         },
-        emphasis: { focus: 'series', scale: 1.3 }
-      },
-      {
+        itemStyle: { color: ordersColor },
+        areaStyle: {
+          color: createAreaGradient(hexToRgba(ordersColor), 0.35)
+        }
+      }),
+      createBarSeries({
         name: '营收（万元）',
-        type: 'bar',
         yAxisIndex: 1,
         data: data.revenue.map(v => +(v / 10000).toFixed(2)),
-        barWidth: 10,
         itemStyle: {
-          borderRadius: [6, 6, 0, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#ff6b9d' },
-            { offset: 1, color: 'rgba(255,107,157,0.2)' }
-          ])
+          color: createBarGradient(revenueColor)
         }
-      },
-      {
+      }),
+      createLineSeries({
         name: '新增用户',
-        type: 'line',
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 7,
-        showSymbol: false,
         data: data.newUsers,
         yAxisIndex: 0,
-        lineStyle: { width: 3, color: '#32d583', shadowColor: 'rgba(50,213,131,0.35)', shadowBlur: 10 },
-        itemStyle: { color: '#32d583', borderColor: '#0a0f1e', borderWidth: 2 },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(50,213,131,0.25)' },
-            { offset: 1, color: 'rgba(50,213,131,0.01)' }
-          ])
+        lineStyle: {
+          width: 3,
+          color: usersColor,
+          shadowColor: hexToRgba(usersColor, 0.35),
+          shadowBlur: 10
         },
-        emphasis: { focus: 'series', scale: 1.3 }
-      }
+        itemStyle: { color: usersColor },
+        areaStyle: {
+          color: createAreaGradient(hexToRgba(usersColor), 0.25)
+        }
+      })
     ]
   };
 };
@@ -167,8 +129,13 @@ const buildOption = (data) => {
 const initChart = async () => {
   if (!chartRef.value) return;
   chartInstance = echarts.init(chartRef.value);
+
+  resizeObserver = new ResizeObserver(() => {
+    chartInstance && chartInstance.resize();
+  });
+  resizeObserver.observe(chartRef.value);
+
   await loadData();
-  window.addEventListener('resize', handleResize);
 };
 
 const loadData = async () => {
@@ -176,9 +143,11 @@ const loadData = async () => {
     const params = { period: period.value, ...props.filterParams };
     const res = await getDashboardTrend(params);
     if (res.code === 0 && chartInstance) {
-      chartInstance.setOption(buildOption(res.data), true);
+      chartInstance.setOption(buildChartOption(res.data), true);
     }
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error('加载趋势数据失败:', e);
+  }
 };
 
 const handleResize = () => {
@@ -191,18 +160,30 @@ const switchPeriod = (p) => {
   loadData();
 };
 
-watch(() => props.filterParams, () => {
-  loadData();
-}, { deep: true });
+watch(
+  () => props.filterParams,
+  () => {
+    loadData();
+  },
+  { deep: true }
+);
 
 onMounted(async () => {
   await nextTick();
   initChart();
+  window.addEventListener('resize', handleResize);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
-  chartInstance && chartInstance.dispose();
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  if (chartInstance) {
+    chartInstance.dispose();
+    chartInstance = null;
+  }
 });
 </script>
 
@@ -261,7 +242,7 @@ onUnmounted(() => {
 }
 
 .period-tab.active {
-  background: linear-gradient(135deg, rgba(0,212,255,0.25), rgba(124,92,255,0.25));
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.25), rgba(124, 92, 255, 0.25));
   color: #fff;
   box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
 }

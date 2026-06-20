@@ -25,6 +25,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { formatNumber } from '../utils';
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -35,14 +36,6 @@ const props = defineProps({
   prefix: { type: String, default: '' },
   unit: { type: String, default: '' }
 });
-
-const formatNumber = (num) => {
-  const n = Number(num);
-  if (isNaN(n)) return num;
-  if (n >= 100000000) return (n / 100000000).toFixed(2) + '亿';
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
-  return n.toLocaleString('zh-CN');
-};
 
 const formattedValue = computed(() => formatNumber(props.value));
 const formattedToday = computed(() => formatNumber(props.todayValue));

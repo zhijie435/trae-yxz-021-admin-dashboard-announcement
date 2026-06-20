@@ -104,6 +104,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { getCityList, getStoreList } from '../api';
+import { TIME_RANGE_OPTIONS, getDateRangeFromTimeRange } from '../utils';
 
 const props = defineProps({
   modelValue: {
@@ -118,13 +119,7 @@ const cities = reactive([]);
 const stores = reactive([]);
 const loading = ref(false);
 
-const timeOptions = [
-  { label: '今日', value: 'today' },
-  { label: '近7天', value: '7d' },
-  { label: '近14天', value: '14d' },
-  { label: '近30天', value: '30d' },
-  { label: '自定义', value: 'custom' }
-];
+const timeOptions = TIME_RANGE_OPTIONS;
 
 const city = computed({
   get: () => props.modelValue.city || '',
@@ -227,44 +222,6 @@ const handleEndDateChange = (e) => {
   endDate.value = e.target.value;
   if (startDate.value && endDate.value) {
     emitChange();
-  }
-};
-
-const getDateRangeFromTimeRange = (timeRange, startDate, endDate) => {
-  const now = new Date();
-  const formatDateStr = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  switch (timeRange) {
-    case 'today': {
-      const today = formatDateStr(now);
-      return { startDate: today, endDate: today };
-    }
-    case '7d': {
-      const end = formatDateStr(now);
-      const start = new Date(now.getTime() - 6 * 24 * 3600 * 1000);
-      return { startDate: formatDateStr(start), endDate: end };
-    }
-    case '14d': {
-      const end = formatDateStr(now);
-      const start = new Date(now.getTime() - 13 * 24 * 3600 * 1000);
-      return { startDate: formatDateStr(start), endDate: end };
-    }
-    case '30d': {
-      const end = formatDateStr(now);
-      const start = new Date(now.getTime() - 29 * 24 * 3600 * 1000);
-      return { startDate: formatDateStr(start), endDate: end };
-    }
-    case 'custom': {
-      if (startDate && endDate) return { startDate, endDate };
-      return {};
-    }
-    default:
-      return {};
   }
 };
 
