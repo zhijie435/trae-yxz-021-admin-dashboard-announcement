@@ -1,0 +1,14 @@
+{
+  "name": "dashboard-backend",
+  "version": "1.0.0",
+  "description": "数据大盘后端服务",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
