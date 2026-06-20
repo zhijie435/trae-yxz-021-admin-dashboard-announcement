@@ -84,6 +84,77 @@ function randomFluctuate(base, range) {
   return base + Math.floor(Math.random() * range * 2) - range;
 }
 
+function getDaySeed(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const s = `${y}${m}${d}`;
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash) + s.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function seededRandom(seed) {
+  let s = seed % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return function() {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function generateTodayData(city, store, weight) {
+  const daySeed = getDaySeed();
+  const filterSeed = daySeed + (city ? city.charCodeAt(0) * 131 : 0) + (store ? store.charCodeAt(1) * 977 : 0);
+  const rand = seededRandom(filterSeed);
+
+  const hours = [];
+  const currentHour = new Date().getHours();
+  for (let i = 0; i <= currentHour; i++) {
+    hours.push(`${String(i).padStart(2, '0')}:00`);
+  }
+
+  const baseOrder = city ? (store ? 3 : 18) : (store ? 5 : 30);
+  const baseRevenue = city ? (store ? 1200 : 6500) : (store ? 2000 : 10000);
+  const baseUser = city ? (store ? 4 : 22) : (store ? 6 : 35);
+
+  const orderHourly = hours.map(() => Math.floor((5 + rand() * 35) * weight));
+  const revenueHourly = hours.map(() => +((2000 + rand() * 12000) * weight).toFixed(2));
+  const userHourly = hours.map(() => Math.floor((10 + rand() * 50) * weight));
+
+  const orderFluct = 0.8 + rand() * 0.4;
+  const revenueFluct = 0.8 + rand() * 0.4;
+  const userFluct = 0.8 + rand() * 0.4;
+
+  const data = {
+    orders: {
+      total: Math.floor(baseOrder * hours.length * weight * orderFluct),
+      goal: Math.floor(500 * weight),
+      rate: 0,
+      hourly: orderHourly
+    },
+    revenue: {
+      total: +(baseRevenue * hours.length * weight * revenueFluct).toFixed(2),
+      goal: Math.floor(150000 * weight),
+      rate: 0,
+      hourly: revenueHourly
+    },
+    newUsers: {
+      total: Math.floor(baseUser * hours.length * weight * userFluct),
+      goal: Math.floor(600 * weight),
+      rate: 0,
+      hourly: userHourly
+    }
+  };
+  data.orders.rate = +((data.orders.total / data.orders.goal) * 100).toFixed(1);
+  data.revenue.rate = +((data.revenue.total / data.revenue.goal) * 100).toFixed(1);
+  data.newUsers.rate = +((data.newUsers.total / data.newUsers.goal) * 100).toFixed(1);
+  return data;
+}
+
 function generateTrendData(days = 14, weight = 1) {
   const result = { dates: [], orders: [], revenue: [], newUsers: [] };
   const now = new Date();
@@ -217,13 +288,15 @@ app.get('/api/dashboard/stats', (req, res) => {
   const baseRevenue = city ? 3200000 : 12865432.5;
   const baseStores = store ? 1 : (city ? 30 : 256);
 
+  const todayData = generateTodayData(city, store, weight);
+
   const data = {
     totalUsers: Math.floor(baseUsers * factor),
-    todayUsers: Math.floor((city ? 95 : 432) * weight),
+    todayUsers: todayData.newUsers.total,
     totalOrders: Math.floor(baseOrders * factor),
-    todayOrders: Math.floor((city ? 56 : 256) * weight),
+    todayOrders: todayData.orders.total,
     totalRevenue: +(baseRevenue * factor).toFixed(2),
-    todayRevenue: +((city ? 18000 : 86520) * weight).toFixed(2),
+    todayRevenue: todayData.revenue.total,
     totalStores: baseStores,
     todayStores: store ? (Math.random() > 0.5 ? 1 : 0) : Math.floor(3 * weight),
     updatedAt: new Date().toISOString()
@@ -234,40 +307,11 @@ app.get('/api/dashboard/stats', (req, res) => {
 app.get('/api/dashboard/today', (req, res) => {
   const { city, store } = req.query;
   const weight = getFilterWeight(city, store);
-  const hours = [];
-  const currentHour = new Date().getHours();
-  for (let i = 0; i <= currentHour; i++) {
-    hours.push(`${String(i).padStart(2, '0')}:00`);
-  }
-
-  const baseOrder = city ? (store ? 3 : 18) : (store ? 5 : 30);
-  const baseRevenue = city ? (store ? 1200 : 6500) : (store ? 2000 : 10000);
-  const baseUser = city ? (store ? 4 : 22) : (store ? 6 : 35);
 
   const data = {
-    orders: {
-      total: Math.floor(baseOrder * hours.length * weight * (0.8 + Math.random() * 0.4)),
-      goal: Math.floor(500 * weight),
-      rate: 0,
-      hourly: hours.map(() => Math.floor((5 + Math.random() * 35) * weight))
-    },
-    revenue: {
-      total: +(baseRevenue * hours.length * weight * (0.8 + Math.random() * 0.4)).toFixed(2),
-      goal: Math.floor(150000 * weight),
-      rate: 0,
-      hourly: hours.map(() => +((2000 + Math.random() * 12000) * weight).toFixed(2))
-    },
-    newUsers: {
-      total: Math.floor(baseUser * hours.length * weight * (0.8 + Math.random() * 0.4)),
-      goal: Math.floor(600 * weight),
-      rate: 0,
-      hourly: hours.map(() => Math.floor((10 + Math.random() * 50) * weight))
-    },
+    ...generateTodayData(city, store, weight),
     updatedAt: new Date().toISOString()
   };
-  data.orders.rate = +((data.orders.total / data.orders.goal) * 100).toFixed(1);
-  data.revenue.rate = +((data.revenue.total / data.revenue.goal) * 100).toFixed(1);
-  data.newUsers.rate = +((data.newUsers.total / data.newUsers.goal) * 100).toFixed(1);
   res.json({ code: 0, data, message: 'success' });
 });
 
