@@ -77,6 +77,8 @@
             <TodoReminder />
           </div>
         </div>
+
+        <AnnouncementPanel />
       </div>
     </main>
   </div>
@@ -89,6 +91,7 @@ import TodayData from './components/TodayData.vue';
 import TrendChart from './components/TrendChart.vue';
 import CityRanking from './components/CityRanking.vue';
 import TodoReminder from './components/TodoReminder.vue';
+import AnnouncementPanel from './components/AnnouncementPanel.vue';
 import { getDashboardStats } from './api';
 
 const loading = ref(false);

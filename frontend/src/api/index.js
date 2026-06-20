@@ -24,3 +24,24 @@ export const getDashboardCities = () => {
 export const getDashboardTodos = () => {
   return request.get('/dashboard/todos').then(res => res.data);
 };
+
+export const getAnnouncements = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return request.get(`/announcements${qs ? `?${qs}` : ''}`).then(res => res.data);
+};
+
+export const createAnnouncement = (data) => {
+  return request.post('/announcements', data).then(res => res.data);
+};
+
+export const updateAnnouncement = (id, data) => {
+  return request.put(`/announcements/${id}`, data).then(res => res.data);
+};
+
+export const deleteAnnouncement = (id) => {
+  return request.delete(`/announcements/${id}`).then(res => res.data);
+};
+
+export const getAnnouncementTypes = () => {
+  return request.get('/announcements/types').then(res => res.data);
+};
